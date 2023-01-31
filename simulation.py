@@ -16,7 +16,7 @@ class Player:
     realSkill: int
     gamesPlayed: int
     sigma: float # 3.5 max, 2.5 is normalized. Is higher at start of season and normalizes around 15 to 20 games in.
-    desireToPlay: int
+    desireToPlay: float
     streak: int
     
 class Simulation:
@@ -35,8 +35,8 @@ class Simulation:
         lTeamMMR = self.calcTeamMMR(lTeam)
         # expectedScore = 1 / (1 + pow(10, (wTeamMMR - lTeamMMR) / 400))
         for player in wTeam:
-            player.mmr = ((player.sigma - 1.5) * 9) + wTeamMMR
-            player.realSkill = ((player.sigma - 1.5) * 9) + wTeamMMR
+            player.mmr = round(((player.sigma - 1.5) * 9) + wTeamMMR)
+            player.realSkill = round(((player.sigma - 1.5) * 9) + wTeamMMR)
             player.gamesPlayed += 1
             if player.streak < 0:
                 player.streak = 1
@@ -44,8 +44,8 @@ class Simulation:
                 player.streak += 1
 
         for player in lTeam:
-            player.mmr = lTeamMMR - ((player.sigma - 1.5) * 9)
-            player.realSkill = lTeamMMR - ((player.sigma - 1.5) * 9)
+            player.mmr = round(lTeamMMR - ((player.sigma - 1.5) * 9))
+            player.realSkill = round(lTeamMMR - ((player.sigma - 1.5) * 9))
             player.gamesPlayed += 1
             if player.streak > 0:
                 player.streak = -1
