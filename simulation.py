@@ -40,6 +40,7 @@ class Simulation:
         self.playersPerTeam = playersPerTeam
         self.players = []
         self.maxMmrDistance = maxMmrDistance
+        self.callNewPlayers = 0
 
     # When matched against an equally rated opponent, you will gain or lose the average amount of MMR (e.g win 9, lose 9).
     # When matched against a higher rated opponent, you will gain more or lose less than the average amount of MMR (e.g. win 11, lose 7).
@@ -48,28 +49,42 @@ class Simulation:
         # expectedScore = 1 / (1 + pow(10, (wTeamMMR - lTeamMMR) / 400))
         for team in game.teams:
             for player in team.players:
+                player.realSkill += 1
                 if team.result:
-                    player.mmr = round(((player.sigma - 1.5) * 9) + player.mmr)
-                    # replace(player, mmr = round(((player.sigma - 1.5) * 9) + player.mmr))
-                    # print("Calculated MMR: " + str(round(((player.sigma - 1.5) * 9) + player.mmr)))
-                    # print("Actual MMR: " + str(player.mmr))
-                    # print("Player number: " + str(player.number))
-                    player.realSkill = round(((player.sigma - 1.5) * 9) + player.realSkill)
+                    newMMR = round(((player.sigma - 1.5) * 9) + player.mmr)
+                    if newMMR - player.mmr > 18:
+                        player.mmr += 18
+                    else:
+                        player.mmr = newMMR
+                    # player.realSkill = round(((player.sigma - 1.5) * 9) + player.realSkill)
+                    player.realSkill = round(9 + player.realSkill)
                     if player.streak < 0:
                         player.streak = 1
                     else:
                         player.streak += 1
                 else:
-                    player.mmr = round(player.mmr - ((player.sigma - 1.5) * 9))
-                    player.realSkill = round(player.realSkill - ((player.sigma - 1.5) * 9))
+                    newMMR = round(player.mmr - ((player.sigma - 1.5) * 9))
+                    if player.mmr - newMMR > 18:
+                        player.mmr -= 18
+                    else:
+                        player.mmr = newMMR
+                    if player.mmr < 0: player.mmr = 0
+                    player
+                    # player.realSkill = round(player.realSkill - ((player.sigma - 1.5) * 9))
+                    player.realSkill = round(player.realSkill - 9)
+                    # player.realSkill -= 5
                     if player.streak > 0:
                         player.streak = -1
                     else:
                         player.streak -= 1
                 player.gamesPlayed += 1
                 self.calcSigma(player)
-                if player.streak > 2:
-                    player.realSkill += 5
+                # self.realSkillDecay(player)
+                if abs(player.streak) > 1: player.realSkill += player.streak
+                if player.realSkill < 30: player.realSkill = 100
+
+    def realSkillDecay(self, player):
+        player.realSkill -= random.randint(0, 3)
     
     def calcSigma(self, player):
         if player.gamesPlayed < 15:
@@ -80,6 +95,13 @@ class Simulation:
             else:
                 player.sigma = pow((1/2) * player.streak, 2) + 2.5
 
+    def fixRealSkill(self, player):
+        if player.mmr / player.realSkill < 0.9:
+            player.realSkill = round(player.mmr * 1.1)
+        elif player.mmr / player.realSkill > 1.1:
+            player.realSkill = round(player.mmr * 0.9)
+        if player.realSkill < 30: player.realSkill = 100
+
     # pulls all players' MMR closer to the median
     # NewMMR = TargetMMR + (OldMMR - MedianMMR) * SquishFactor
     def newReset(self, squishFactor):
@@ -89,11 +111,14 @@ class Simulation:
         mmrList.sort()
         mmrMedian = statistics.median(mmrList)
         for player in self.players:
+            self.fixRealSkill(player)
             player.mmr = mmrMedian + (player.mmr - mmrMedian) * squishFactor
+
 
     # resets all players above X MMR to X
     def oldReset(self, resetMMR):
         for player in self.players:
+            self.fixRealSkill(player)
             if player.mmr > resetMMR:
                 player.mmr = resetMMR
 
@@ -133,8 +158,8 @@ class Simulation:
         # generate a random number between 1 and 100. if it's less than team1Percent, team1 wins. Otherwise, team2 wins.
         # calculate new MMRs and other stats for players
         game = self.buildGame(playersPerTeam)
-        team1CombinedSkill = (game.teams[0].mmr + game.teams[0].realSkill) / 2
-        team2CombinedSkill = (game.teams[1].mmr + game.teams[1].realSkill) / 2
+        team1CombinedSkill = ((game.teams[0].mmr * 0.2) + (game.teams[0].realSkill * 0.8)) / 2
+        team2CombinedSkill = ((game.teams[1].mmr * 0.2) + (game.teams[1].realSkill * 0.8)) / 2
         gameSummedSkill = team1CombinedSkill + team2CombinedSkill
         team1Percent = team1CombinedSkill / gameSummedSkill * 100
         # print("Team 1 combined skill: " + str(team1CombinedSkill))
@@ -147,9 +172,10 @@ class Simulation:
             # print("Game result: Team 2 wins!")
         self.calcPostGameElo(game)
 
-    def addNewPlayers(self, numPlayers, startingMMR, startingSkill):
-        for i in range(0, numPlayers):
-            newplayer = Player
+    def addNewPlayers(self, numPlayersAdding, startingMMR, startingSkill):
+        if self.numPlayers > 10000: exit(-1)
+        for i in range(0, numPlayersAdding):
+            newplayer = Player()
             newplayer.number = self.numPlayers
             self.numPlayers += 1
             newplayer.mmr = startingMMR
@@ -163,7 +189,6 @@ class Simulation:
         # for every player that has desire to play, put them in teams and then runGame
         # calculate desireToPlay with a formula that accounts for streak and a random indicator. higher ranked players more likely to grind despite results as well
         for i in range(0, numGamesPerPlayer * len(self.players)):
-            self.addNewPlayers(random.randint(0, numPlayersBetweenGames), startingMMR, startingSkill)
             self.runGame(self.playersPerTeam)
             # print("Running game " + str(i) + " of " + str(numGamesPerPlayer * len(self.players)))
             # print(numGamesPerPlayer)
@@ -204,10 +229,11 @@ class Simulation:
 
     def drawPlot(self, title, data, dataName):
         plt.figure(figsize = (6, 6))
-        plt.title=title
-        plt.plot(data)
+        plotTitle = title + "_" + dataName
+        plt.title(plotTitle)
+        plt.hist(data, bins = 30)
         savePath = "C:/Users/mdog9/source/graphs/mmr/"
-        saveName = savePath + title + "_" + dataName + "_plot.png"
+        saveName = savePath + plotTitle + "_plot.png"
         plt.savefig(saveName)
 
     # run the full simulation
@@ -215,16 +241,18 @@ class Simulation:
         # run 10 ranked seasons followed by the old MMR reset. starting MMR is low. capture MMR curves in graphs
         # add a massive wave of new low skilled players
         # run 10 ranked seasons followed by new MMR reset. starting MMR is high. capture MMR curves in graphs
-        self.addNewPlayers(100, 200, 200)
-        for i in range(0, 3):
-            self.runSeason(200, 200, 30, 2)
-            self.preparePlot("Old Season " + str(i) + " MMR", ["mmr"])
+        self.addNewPlayers(1000, 200, 200)
+        for i in range(1, 11):
+            self.addNewPlayers(random.randint(20,30),200,200)
+            self.runSeason(200, 200, 100, 0)
+            self.preparePlot("Old Season " + str(i), ["realSkill", "mmr", "gamesPlayed"])
             self.oldReset(1200)
             print("Finished season " + str(i) + " of old Ranked")
-        self.addNewPlayers(100, 600, 200)
-        for i in range(0, 3):
-            self.runSeason(600, 200, 30, 2)
-            self.preparePlot("New Season " + str(i) + " MMR", ["mmr"])
+        self.addNewPlayers(3000, 600, 200)
+        for i in range(1, 11):
+            self.addNewPlayers(random.randint(40,50), 600, 200)
+            self.runSeason(600, 200, 50, 0)
+            self.preparePlot("New Season " + str(i), ["realSkill", "mmr", "gamesPlayed"])
             self.newReset(0.8)
             print("Finished season " + str(i) + " of new Ranked")
         return 0
@@ -234,7 +262,7 @@ simulation.runSim()
 
 # players = []
 # numPlayers = 0
-# newplayer = Player
+# newplayer = Player()
 # newplayer.number = numPlayers
 # numPlayers += 1
 # newplayer.mmr = 200
@@ -243,18 +271,21 @@ simulation.runSim()
 # print("new player 0 number: " + str(newplayer.number))
 # players.append(newplayer)
 
-# newplayer = Player
-# newplayer.number = numPlayers
+# newplayer1 = Player()
+# newplayer1.number = numPlayers
 # numPlayers += 1
-# newplayer.mmr = 205
-# newplayer.realSkill = 205
-# print("new player 1 real skill: " + str(newplayer.realSkill))
-# players.append(newplayer)
+# newplayer1.mmr = 205
+# newplayer1.realSkill = 205
+# print("new player 1 real skill: " + str(newplayer1.realSkill))
+# players.append(newplayer1)
+
+# print(players[0].number)
+# print(players[1].number)
 
 # i = 0
-# for player in players:
+# for p in players:
 #     print(i)
-#     print("player " + str(player.number) + " realskill: " + str(player.realSkill))
-#     if player.number == 1: player.realSkill = 300
-#     print("player " + str(player.number) + " realskill: " + str(player.realSkill))
+#     print("Player " + str(i) + " mmr: " + str(p.mmr))
+#     if i == 1: p.mmr = 300
+#     print("Player " + str(i) + " mmr: " + str(p.mmr))
 #     i += 1
