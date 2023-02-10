@@ -117,6 +117,11 @@ class Simulation:
 
     # resets all players above X MMR to X
     def oldReset(self, resetMMR):
+        mmrList = []
+        for player in self.players:
+            mmrList.append(player.mmr)
+        mmrList.sort()
+        resetMMR = statistics.median(mmrList)
         for player in self.players:
             self.fixRealSkill(player)
             if player.mmr > resetMMR:
@@ -250,11 +255,12 @@ class Simulation:
             print("Finished season " + str(i) + " of old Ranked")
         self.addNewPlayers(3000, 600, 200)
         for i in range(1, 11):
-            self.addNewPlayers(random.randint(40,50), 600, 200)
+            self.addNewPlayers(random.randint(150,200), 600, 200)
             self.runSeason(600, 200, 50, 0)
             self.preparePlot("New Season " + str(i), ["realSkill", "mmr", "gamesPlayed"])
             self.newReset(0.8)
             print("Finished season " + str(i) + " of new Ranked")
+            self.preparePlot("New Season Post Reset " + str(i), ["realSkill", "mmr", "gamesPlayed"])
         return 0
 
 simulation = Simulation(3, 20)
